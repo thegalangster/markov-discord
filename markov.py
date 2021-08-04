@@ -1,66 +1,128 @@
-"""A Markov chain generator that can tweet random messages."""
+"""Generate Markov text from text files."""
 
-import sys
 from random import choice
+import sys
+import string
+
+combined_chains = {}
+
+def open_and_read_file(file_path):
+    """Take file path as string; return text as string.
+
+    Takes a string that is a file path, opens the file, and turns
+    the file's contents as one string of text.
+    """
+
+    file_object = open(file_path)
+    file_as_string = file_object.read()
+
+    return file_as_string.replace("\n", " ").rstrip()
 
 
-def open_and_read_file(filenames):
-    """Take list of files. Open them, read them, and return one long string."""
+def make_chains(chains, text_string, key_length):
+    """Take input text as string; return dictionary of Markov chains.
 
-    body = ''
-    for filename in filenames:
-        text_file = open(filename)
-        body = body + text_file.read()
-        text_file.close()
+    A chain will be a key that consists of a tuple of (word1, word2)
+    and the value would be a list of the word(s) that follow those two
+    words in the input text.
 
-    return body
+    For example:
 
+        >>> chains = make_chains('hi there mary hi there juanita')
 
-def make_chains(text_string):
-    """Take input text as string; return dictionary of Markov chains."""
+    Each bigram (except the last) will be a key in chains:
 
-    chains = {}
+        >>> sorted(chains.keys())
+        [('hi', 'there'), ('mary', 'hi'), ('there', 'mary')]
 
+    Each item in chains is a list of all possible following words:
+
+        >>> chains[('hi', 'there')]
+        ['mary', 'juanita']
+
+        >>> chains[('there','juanita')]
+        [None]
+    """
+
+    value_list = ["text"]
     words = text_string.split()
-    for i in range(len(words) - 2):
-        key = (words[i], words[i + 1])
-        value = words[i + 2]
 
-        if key not in chains:
-            chains[key] = []
+    # iterate through each index in words until the length of index minus 2
+    # (value at index, value at index + 1): append to list value at index + 2
 
-        chains[key].append(value)
+    for index in range(0, len(words) - key_length):
+        key = []
+        for count in range(index, index + key_length):
+            key.append(words[count])
+        key = tuple(key)
+        value = words[index + key_length]
+
+        existing_value = chains.get(key, [])
+        existing_value.append(value)
+        chains[key] = existing_value
 
     return chains
 
 
-def make_text(chains):
-    """Take dictionary of Markov chains; return random text."""
+def find_capitol_keys(chains):
+    capitol_keys = []
+    keys = chains.keys()
+    for key in keys:
+        if key[0][0] in string.ascii_uppercase:
+            capitol_keys.append(key)
+    return capitol_keys
 
-    keys = list(chains.keys())
-    key = choice(keys)
+def find_punc_end_keys(chains):
+    punc_end_keys = set()
+    values = chains.values()
+    for value in values:
+        for item in value:
+            if item[-1] in string.punctuation:
+                punc_end_keys.add(item)
+    return punc_end_keys
 
-    words = [key[0], key[1]]
-    while key in chains:
-        # Keep looping until we have a key that isn't in the chains
-        # (which would mean it was the end of our original text).
+def make_text(chains, key_length):
+    """Return text from chains."""
 
-        # Note that for long texts (like a full book), this might mean
-        # it would run for a very long time.
+    words = []
 
-        word = choice(chains[key])
-        words.append(word)
-        key = (key[1], word)
+    #pick random key
+    capitol_keys = find_capitol_keys(chains)
+    selected_key = choice(capitol_keys)
+    words.extend(selected_key)
+    
+    #pick random value from that key
+    #loop until error
+    while True:
+        #from that key, pick random value
+        if chains.get(selected_key) is not None:
+            random_word = choice(chains[selected_key])
+            words.append(random_word)
+        else:
+            return ' '.join(words)
 
-    return ' '.join(words)
+        punc_end_keys = find_punc_end_keys(chains)
+        if random_word in punc_end_keys:
+            return ' '.join(words)
+
+        #from the string that's created, pick the last two words - find that key in the dictionary
+        new_key_position = 0 - key_length
+        selected_key = words[new_key_position:]
+        selected_key = tuple(selected_key)
 
 
-# Get the filenames from the user through a command line prompt, ex:
-# python markov.py green-eggs.txt shakespeare.txt
-filenames = sys.argv[1:]
+length = input("What is the key length?\n > ")
+length = int(length)
 
-# Open the files and turn them into one long string
-text = open_and_read_file(filenames)
+for index in range(1, len(sys.argv)):
+    input_path = sys.argv[index]
 
-# Get a Markov chain
-chains = make_chains(text)
+    # Open the file and turn it into one long string
+    input_text = open_and_read_file(input_path)
+    # Get a Markov chain
+    chains = make_chains(combined_chains, input_text, length)
+
+# Produce random text
+random_text = make_text(chains, length)
+
+print(random_text)
